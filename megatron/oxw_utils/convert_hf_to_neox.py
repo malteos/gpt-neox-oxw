@@ -173,3 +173,5 @@ def convert_hf_to_neox(hf_model: GPT2LMHeadModel, model_pipe: GPT2ModelPipe, arg
                 source_k,
                 rgetattr(source_layer, source_k)
             )
+
+    return model_pipe

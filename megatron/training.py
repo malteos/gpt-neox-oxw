@@ -24,11 +24,13 @@ from functools import partial
 
 import math
 import sys
+from pathlib import Path
 
 import torch
 import deepspeed
 import numpy as np
 
+from megatron.oxw_utils.convert_hf_to_neox import convert_hf_to_neox
 from megatron.utils import (
     Timers,
     init_wandb,
@@ -425,16 +427,35 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
 
         if neox_args.from_pretrained_hf:
-            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
-            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
-            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
-            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
-            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
-            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
+            print_rank_0("##########################################")
+            print_rank_0("##########################################")
+            print_rank_0("##########################################")
+            print_rank_0("Overwriting model with pretrained Huggingface model ... ")
 
-            # TODO
+            available_checkpoints = sorted(
+                [
+                    int(i.name.replace("global_step", ""))
+                    for i in Path(neox_args.load).glob("global_step*")
+                ]
+            )
 
-        print_rank_0(neox_args.from_pretrained_hf)
+            if len(available_checkpoints) > 0:
+                print_rank_0('--- DO NOT use pretrained model because checkpoints already exist!')
+            else:
+                print_rank_0(f'Loading HF weights from {neox_args.from_pretrained_hf}')
+
+                from transformers import GPT2LMHeadModel
+
+                hf_model = GPT2LMHeadModel.from_pretrained(neox_args.from_pretrained_hf)
+                model_pipe = convert_hf_to_neox(hf_model, model_pipe=model.module, args=neox_args)
+
+                model.module = model_pipe
+
+                print_rank_0("Done.")
+
+            print_rank_0("##########################################")
+            print_rank_0("##########################################")
+            print_rank_0("##########################################")
 
         model.total_params = get_total_params(model.module)
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
