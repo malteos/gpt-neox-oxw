@@ -33,6 +33,7 @@ from .neox_args import (
     NeoXArgsLRScheduler,
     ATTENTION_TYPE_CHOICES,
 )
+from .oxw_args import OXWArgs
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
@@ -72,6 +73,7 @@ BASE_CLASSES = [
     NeoXArgsLogging,
     NeoXArgsTextgen,
     NeoXArgsOther,
+    OXWArgs,
 ]
 
 DEEPSPEED_ARG_CLASSES = [NeoXArgsDeepspeedRunner, NeoXArgsDeepspeedConfig]

@@ -423,6 +423,19 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             config_params=neox_args.deepspeed_config,
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
+
+        if neox_args.from_pretrained_hf:
+            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
+            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
+            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
+            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
+            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
+            print_rank_0("Overwrite model with pretrained Huggingface model #####################.")
+
+            # TODO
+
+        print_rank_0(neox_args.from_pretrained_hf)
+
         model.total_params = get_total_params(model.module)
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
 
