@@ -243,6 +243,37 @@ def get_model(neox_args, use_cache=False):
         use_cache=use_cache,
     )
 
+    if neox_args.from_pretrained_hf:
+        print_rank_0("##########################################")
+        print_rank_0("##########################################")
+        print_rank_0("##########################################")
+        print_rank_0("Overwriting model with pretrained Huggingface model ... ")
+
+        available_checkpoints = sorted(
+            [
+                int(i.name.replace("global_step", ""))
+                for i in Path(neox_args.load).glob("global_step*")
+            ]
+        ) if neox_args.load else []
+
+        if len(available_checkpoints) > 0:
+            print_rank_0('--- DO NOT use pretrained model because checkpoints already exist!')
+        else:
+            print_rank_0(f'Loading HF weights from {neox_args.from_pretrained_hf}')
+
+            from transformers import GPT2LMHeadModel
+
+            hf_model = GPT2LMHeadModel.from_pretrained(neox_args.from_pretrained_hf)
+            model = convert_hf_to_neox(hf_model, model_pipe=model, args=neox_args)
+
+            #modelule = model_pipe
+
+            print_rank_0("Done.")
+
+        print_rank_0("##########################################")
+        print_rank_0("##########################################")
+        print_rank_0("##########################################")
+
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
         "enabled", False
@@ -425,37 +456,6 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             config_params=neox_args.deepspeed_config,
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
-
-        if neox_args.from_pretrained_hf:
-            print_rank_0("##########################################")
-            print_rank_0("##########################################")
-            print_rank_0("##########################################")
-            print_rank_0("Overwriting model with pretrained Huggingface model ... ")
-
-            available_checkpoints = sorted(
-                [
-                    int(i.name.replace("global_step", ""))
-                    for i in Path(neox_args.load).glob("global_step*")
-                ]
-            ) if neox_args.load else []
-
-            if len(available_checkpoints) > 0:
-                print_rank_0('--- DO NOT use pretrained model because checkpoints already exist!')
-            else:
-                print_rank_0(f'Loading HF weights from {neox_args.from_pretrained_hf}')
-
-                from transformers import GPT2LMHeadModel
-
-                hf_model = GPT2LMHeadModel.from_pretrained(neox_args.from_pretrained_hf)
-                model_pipe = convert_hf_to_neox(hf_model, model_pipe=model.module, args=neox_args)
-
-                model.module = model_pipe
-
-                print_rank_0("Done.")
-
-            print_rank_0("##########################################")
-            print_rank_0("##########################################")
-            print_rank_0("##########################################")
 
         model.total_params = get_total_params(model.module)
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
