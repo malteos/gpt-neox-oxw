@@ -87,8 +87,9 @@ def convert_hf_to_neox(hf_model: GPT2LMHeadModel, model_pipe: GPT2ModelPipe, arg
         target_idx, _ = layer_idx_embedding_layers[0]
 
         # handle vocab mismatch -> only override until vocab_size is reached
-        model_pipe.forward_funcs[target_idx].word_embeddings.weight[:hf_vocab_size, :] = source_layer.weight
+        model_pipe.forward_funcs[target_idx].word_embeddings.weight[:hf_vocab_size, :] = source_layer.weight[:, :]
 
+        """
         # position embedding
         source_layer = hf_model.transformer.wpe
         print_rank_0(type(source_layer))
@@ -170,5 +171,6 @@ def convert_hf_to_neox(hf_model: GPT2LMHeadModel, model_pipe: GPT2ModelPipe, arg
                 source_k,
                 rgetattr(source_layer, source_k)
             )
+        """
 
     return model_pipe

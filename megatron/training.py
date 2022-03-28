@@ -269,6 +269,7 @@ def get_model(neox_args, use_cache=False):
             #modelule = model_pipe
 
             print_rank_0("Done.")
+            print_rank_0(model)
 
         print_rank_0("##########################################")
         print_rank_0("##########################################")
