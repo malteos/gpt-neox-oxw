@@ -437,7 +437,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                     int(i.name.replace("global_step", ""))
                     for i in Path(neox_args.load).glob("global_step*")
                 ]
-            )
+            ) if neox_args.load else []
 
             if len(available_checkpoints) > 0:
                 print_rank_0('--- DO NOT use pretrained model because checkpoints already exist!')
