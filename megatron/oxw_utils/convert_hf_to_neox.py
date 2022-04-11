@@ -77,65 +77,161 @@ def convert_hf_to_neox(hf_model: GPT2LMHeadModel, model_pipe: GPT2ModelPipe, arg
     assert len(layer_idx_norm_pipe_layers) == 1
     assert len(layer_idx_linear_pipe_layers) == 1
 
-    # change weights
-    with torch.no_grad():
-        # word embedding
-        source_layer = hf_model.transformer.wte
-        print_rank_0(type(source_layer))
-        target_idx, _ = layer_idx_embedding_layers[0]
-        # - handle vocab mismatch -> only override until vocab_size is reached
-        model_pipe.forward_funcs[target_idx].word_embeddings.weight[:hf_vocab_size, :] = source_layer.weight[:, :]
+    # change weights via `load_state_dict`
 
-        # position embedding
-        source_layer = hf_model.transformer.wpe
-        print_rank_0(type(source_layer))
-        target_idx, _ = layer_idx_embedding_layers[0]
-        model_pipe.forward_funcs[target_idx].position_embeddings.weight[:, :] = source_layer.weight[:, :]
+    # word embedding
+    print_rank_0('word embeddings')
+    target_idx, _ = layer_idx_embedding_layers[0]
 
-        # transformer blocks
-        for i in range(args.num_layers):
-            source_layer = hf_model.transformer.h[i]
-            print_rank_0(type(source_layer))
+    # handle vocab mismatch -> only override until vocab_size is reached
+    updated_state_dict = model_pipe.forward_funcs[target_idx].word_embeddings.state_dict()
+    updated_state_dict['weight'][:hf_vocab_size, :] = hf_model.transformer.wte.weight
 
-            target_idx, _ = layer_idx_transformer_layers[i]
+    model_pipe.forward_funcs[target_idx].word_embeddings.load_state_dict(
+        updated_state_dict
+    )
 
-            # layer norm
-            model_pipe.forward_funcs[target_idx].input_layernorm.weight[:] = source_layer.ln_1.weight[:]
-            model_pipe.forward_funcs[target_idx].input_layernorm.bias[:] = source_layer.ln_1.bias[:]
+    # position embedding
+    print_rank_0('position embeddings')
 
-            # attention
-            model_pipe.forward_funcs[target_idx].attention.query_key_value.weight[:] = source_layer.attn.c_attn.weight.T[:]
-            model_pipe.forward_funcs[target_idx].attention.query_key_value.bias[:] = source_layer.attn.c_attn.bias[:]
-            model_pipe.forward_funcs[target_idx].attention.dense.weight[:] = source_layer.attn.c_proj.weight[:]
-            model_pipe.forward_funcs[target_idx].attention.dense.bias[:] = source_layer.attn.c_proj.bias[:]
+    target_idx, _ = layer_idx_embedding_layers[0]
+    model_pipe.forward_funcs[target_idx].position_embeddings.load_state_dict(
+        hf_model.transformer.wpe.state_dict()
+    )
 
-            # layer norm 2
-            model_pipe.forward_funcs[target_idx].post_attention_layernorm.weight[:] = source_layer.ln_2.weight[:]
-            model_pipe.forward_funcs[target_idx].post_attention_layernorm.bias[:] = source_layer.ln_2.bias[:]
+    # transformer blocks
+    for i in range(args.num_layers):
+        source_layer = hf_model.transformer.h[i]
+        print(type(source_layer))
 
-            # mlp
-            model_pipe.forward_funcs[target_idx].mlp.dense_h_to_4h.weight[:] = source_layer.mlp.c_fc.weight.T[:]
-            model_pipe.forward_funcs[target_idx].mlp.dense_h_to_4h.bias[:] = source_layer.mlp.c_fc.bias[:]
+        target_idx, _ = layer_idx_transformer_layers[i]
 
-            model_pipe.forward_funcs[target_idx].mlp.dense_4h_to_h.weight[:] = source_layer.mlp.c_proj.weight.T[:]
-            model_pipe.forward_funcs[target_idx].mlp.dense_4h_to_h.bias[:] = source_layer.mlp.c_proj.bias[:]
+        # layer norm
+        model_pipe.forward_funcs[target_idx].input_layernorm.load_state_dict(
+            source_layer.ln_1.state_dict()
+        )
+        # model_pipe.forward_funcs[target_idx].input_layernorm.weight[:] = source_layer.ln_1.weight[:]
+        # model_pipe.forward_funcs[target_idx].input_layernorm.bias[:] = source_layer.ln_1.bias[:]
 
-            # ignore --> all equal
-            # 'attn.bias', 'attn.masked_bias'
-    
-        # norm
-        source_layer = hf_model.transformer.ln_f
-        print_rank_0(type(source_layer))
+        # attention
+        updated_state_dict = source_layer.attn.c_attn.state_dict()
+        updated_state_dict['weight'] = updated_state_dict['weight'].T
+        model_pipe.forward_funcs[target_idx].attention.query_key_value.load_state_dict(
+            updated_state_dict
+        )
+        # model_pipe.forward_funcs[target_idx].attention.query_key_value.weight[:] = source_layer.attn.c_attn.weight.T[:]
+        # model_pipe.forward_funcs[target_idx].attention.query_key_value.bias[:] = source_layer.attn.c_attn.bias[:]
+        model_pipe.forward_funcs[target_idx].attention.dense.load_state_dict(
+            source_layer.attn.c_proj.state_dict()
+        )
+        # model_pipe.forward_funcs[target_idx].attention.dense.weight[:] = source_layer.attn.c_proj.weight[:]
+        # model_pipe.forward_funcs[target_idx].attention.dense.bias[:] = source_layer.attn.c_proj.bias[:]
 
-        target_idx, _ = layer_idx_norm_pipe_layers[0]
-        model_pipe.forward_funcs[target_idx].norm.weight[:] = source_layer.weight[:]
+        # layer norm 2
+        model_pipe.forward_funcs[target_idx].post_attention_layernorm.load_state_dict(
+            source_layer.ln_2.state_dict()
+        )
+        # model_pipe.forward_funcs[target_idx].post_attention_layernorm.weight[:] = source_layer.ln_2.weight[:]
+        # model_pipe.forward_funcs[target_idx].post_attention_layernorm.bias[:] = source_layer.ln_2.bias[:]
 
-        # lm head
-        source_layer = hf_model.lm_head
-        print_rank_0(type(source_layer))
+        # mlp
+        updated_state_dict = source_layer.mlp.c_fc.state_dict()
+        updated_state_dict['weight'] = updated_state_dict['weight'].T
+        model_pipe.forward_funcs[target_idx].mlp.dense_h_to_4h.load_state_dict(
+            updated_state_dict
+        )
+        # model_pipe.forward_funcs[target_idx].mlp.dense_h_to_4h.weight[:] = source_layer.mlp.c_fc.weight.T[:]
+        # model_pipe.forward_funcs[target_idx].mlp.dense_h_to_4h.bias[:] = source_layer.mlp.c_fc.bias[:]
 
-        target_idx, _ = layer_idx_linear_pipe_layers[0]
-        model_pipe.forward_funcs[target_idx].final_linear.weight[:hf_vocab_size,:] = source_layer.weight[:]
+        updated_state_dict = source_layer.mlp.c_proj.state_dict()
+        updated_state_dict['weight'] = updated_state_dict['weight'].T
+        model_pipe.forward_funcs[target_idx].mlp.dense_4h_to_h.load_state_dict(
+            updated_state_dict
+        )
+        # model_pipe.forward_funcs[target_idx].mlp.dense_4h_to_h.weight[:] = source_layer.mlp.c_proj.weight.T[:]
+        # model_pipe.forward_funcs[target_idx].mlp.dense_4h_to_h.bias[:] = source_layer.mlp.c_proj.bias[:]
+
+        # ignore --> all equal
+        # 'attn.bias', 'attn.masked_bias'
+
+        # break
+
+    # norm
+    target_idx, _ = layer_idx_norm_pipe_layers[0]
+    model_pipe.forward_funcs[target_idx].norm.load_state_dict(
+        hf_model.transformer.ln_f.state_dict()
+    )
+
+    # lm head
+    target_idx, _ = layer_idx_linear_pipe_layers[0]
+    updated_state_dict = model_pipe.forward_funcs[target_idx].final_linear.state_dict()
+    updated_state_dict['weight'][:hf_vocab_size, :] = hf_model.lm_head.weight[:]
+    model_pipe.forward_funcs[target_idx].final_linear.load_state_dict(
+        updated_state_dict
+    )
+
+    # sync
+    model_pipe._synchronize_tied_weights()
+
+    # # change weights
+    # with torch.no_grad():
+    #     # word embedding
+    #     source_layer = hf_model.transformer.wte
+    #     print_rank_0(type(source_layer))
+    #     target_idx, _ = layer_idx_embedding_layers[0]
+    #     # - handle vocab mismatch -> only override until vocab_size is reached
+    #     model_pipe.forward_funcs[target_idx].word_embeddings.weight[:hf_vocab_size, :] = source_layer.weight[:, :]
+    #
+    #     # position embedding
+    #     source_layer = hf_model.transformer.wpe
+    #     print_rank_0(type(source_layer))
+    #     target_idx, _ = layer_idx_embedding_layers[0]
+    #     model_pipe.forward_funcs[target_idx].position_embeddings.weight[:, :] = source_layer.weight[:, :]
+    #
+    #     # transformer blocks
+    #     for i in range(args.num_layers):
+    #         source_layer = hf_model.transformer.h[i]
+    #         print_rank_0(type(source_layer))
+    #
+    #         target_idx, _ = layer_idx_transformer_layers[i]
+    #
+    #         # layer norm
+    #         model_pipe.forward_funcs[target_idx].input_layernorm.weight[:] = source_layer.ln_1.weight[:]
+    #         model_pipe.forward_funcs[target_idx].input_layernorm.bias[:] = source_layer.ln_1.bias[:]
+    #
+    #         # attention
+    #         model_pipe.forward_funcs[target_idx].attention.query_key_value.weight[:] = source_layer.attn.c_attn.weight.T[:]
+    #         model_pipe.forward_funcs[target_idx].attention.query_key_value.bias[:] = source_layer.attn.c_attn.bias[:]
+    #         model_pipe.forward_funcs[target_idx].attention.dense.weight[:] = source_layer.attn.c_proj.weight[:]
+    #         model_pipe.forward_funcs[target_idx].attention.dense.bias[:] = source_layer.attn.c_proj.bias[:]
+    #
+    #         # layer norm 2
+    #         model_pipe.forward_funcs[target_idx].post_attention_layernorm.weight[:] = source_layer.ln_2.weight[:]
+    #         model_pipe.forward_funcs[target_idx].post_attention_layernorm.bias[:] = source_layer.ln_2.bias[:]
+    #
+    #         # mlp
+    #         model_pipe.forward_funcs[target_idx].mlp.dense_h_to_4h.weight[:] = source_layer.mlp.c_fc.weight.T[:]
+    #         model_pipe.forward_funcs[target_idx].mlp.dense_h_to_4h.bias[:] = source_layer.mlp.c_fc.bias[:]
+    #
+    #         model_pipe.forward_funcs[target_idx].mlp.dense_4h_to_h.weight[:] = source_layer.mlp.c_proj.weight.T[:]
+    #         model_pipe.forward_funcs[target_idx].mlp.dense_4h_to_h.bias[:] = source_layer.mlp.c_proj.bias[:]
+    #
+    #         # ignore --> all equal
+    #         # 'attn.bias', 'attn.masked_bias'
+    #
+    #     # norm
+    #     source_layer = hf_model.transformer.ln_f
+    #     print_rank_0(type(source_layer))
+    #
+    #     target_idx, _ = layer_idx_norm_pipe_layers[0]
+    #     model_pipe.forward_funcs[target_idx].norm.weight[:] = source_layer.weight[:]
+    #
+    #     # lm head
+    #     source_layer = hf_model.lm_head
+    #     print_rank_0(type(source_layer))
+    #
+    #     target_idx, _ = layer_idx_linear_pipe_layers[0]
+    #     model_pipe.forward_funcs[target_idx].final_linear.weight[:hf_vocab_size,:] = source_layer.weight[:]
 
 
     return model_pipe
