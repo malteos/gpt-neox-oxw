@@ -544,6 +544,25 @@ class NeoXArgs(*BASE_CLASSES):
             args_list.pop(idx)
             args_list.pop(idx)
 
+        # Launcher arguments (e.g., slurm args)
+        slurm_launcher_args_mapping = {
+            "SLURM_LAUNCHER_CONTAINER_IMAGE": "container-image",
+            "SLURM_LAUNCHER_CONTAINER_MOUNTS": "container-mounts",
+            "SLURM_LAUNCHER_CONTAINER_WORKDIR": "container-workdir",
+        }
+        slurm_launcher_args = {}
+        for env_name, arg_name in slurm_launcher_args_mapping.items():
+            if env_name in os.environ:
+                slurm_launcher_args[arg_name] = os.environ.get(env_name)
+
+        if len(slurm_launcher_args) > 0:
+            launcher_args = " ".join(
+                ["--%s=%s" % (k, v) for k, v in slurm_launcher_args.items()]
+            )
+            print("Setting `launcher_args`: ", launcher_args)
+
+            args_list.extend(("--launcher_args", launcher_args))
+
         # add user script
         args_list.append(self.user_script)
 

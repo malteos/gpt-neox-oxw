@@ -15,8 +15,17 @@
 
 import logging
 import os
+import sys
 
 import deepspeed.launcher.runner
+
+# Override Python executable path (needed in Slurm container environments)
+if "PYTHONEXECUTABLE" in os.environ:
+    print(
+        "Overriding `sys.executable` with PYTHONEXECUTABLE =",
+        os.environ.get("PYTHONEXECUTABLE"),
+    )
+    sys.executable = os.environ.get("PYTHONEXECUTABLE")
 
 
 def main(input_args=None):
