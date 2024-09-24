@@ -213,6 +213,7 @@ def create_config(neox_config, architecture="neox"):
         )
 
     # set all config values.
+    print("neox_config", neox_config)
 
     # shared config parameters.
     args = {
@@ -277,6 +278,8 @@ def create_config(neox_config, architecture="neox"):
                 ),
                 "use_parallel_residual": get_key(neox_config, "gpt-j-residual", False),
                 "layer_norm_eps": get_key(neox_config, "layernorm-epsilon", 1e-5),
+                # TODO hard coded fix
+                "intermediate_size": get_key(neox_config, "hidden-size") * 4,
             }
         )
         hf_config = GPTNeoXConfig(**args)
@@ -394,7 +397,7 @@ def convert(
     ARCH = MODEL_KEYS[architecture]
 
     hf_config = create_config(loaded_config, architecture=architecture)
-
+    print("HF config: ", hf_config)
     hf_model = AutoModelForCausalLM.from_config(hf_config)
 
     if architecture == "neox":
@@ -638,6 +641,11 @@ def main(input_args=None, overwrite_values=None):
         help="Whether to skip saving the tokenizer alongside a model.",
     )
     parser.add_argument(
+        "--force_sequential",
+        action="store_true",
+        help="For sequential model type.",
+    )
+    parser.add_argument(
         "--architecture",
         type=str,
         default="neox",
@@ -679,6 +687,10 @@ def main(input_args=None, overwrite_values=None):
         print(
             f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as PipelineModule..."
         )
+
+    if args.force_sequential:
+        sequential = True
+        print(f"Forcing `sequential`=True")
 
     # convert the model to HF.
     hf_model = convert(

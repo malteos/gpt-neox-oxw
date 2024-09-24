@@ -25,6 +25,11 @@ for arg in arguments:
     try:
         dataset = indexed_dataset.make_dataset(arg, "mmap")
         size = np.sum(dataset.sizes)
-        print("Dataset size in tokens is", size)
+        print(f"Dataset size in tokens is {size} ({size:,})")
+
+        total_num_of_documents = dataset.sizes.shape[0]
+        print(
+            f"total_num_of_documents = {total_num_of_documents} ({total_num_of_documents:,})"
+        )
     except AttributeError:
         print("Dataset could not be loaded", arg)
